@@ -142,7 +142,7 @@ abstract interface class MapController {
   /// Show the user location on the map.
   ///
   /// When [MapOptions.locationIconAsset] is set on the parent [MapLibreMap],
-  /// the custom puck is loaded from that asset (Android only).
+  /// the custom puck is loaded from that asset (Android and iOS).
   Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),

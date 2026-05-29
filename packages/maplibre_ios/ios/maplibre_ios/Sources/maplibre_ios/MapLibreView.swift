@@ -2,14 +2,31 @@ import Flutter
 import MapLibre
 
 class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, MLNMapViewDelegate {
+    private static let userLocationReuseId = "MapLibreUserLocation"
+
     private var _view: UIView = .init()
     private var _viewId: Int64
     private var _mapView: MLNMapView!
     private var _registrar: FlutterPluginRegistrar
+    private var _locationIconAssetPath: String?
+    private var _locationIconImage: UIImage?
 
-    init(registrar: FlutterPluginRegistrar, frame: CGRect, viewId: Int64, initStyle: String) {
+    init(
+        registrar: FlutterPluginRegistrar,
+        frame: CGRect,
+        viewId: Int64,
+        initStyle: String,
+        locationIconAsset: String? = nil
+    ) {
         _registrar = registrar
         _viewId = viewId
+        _locationIconAssetPath = locationIconAsset
+        if let asset = locationIconAsset, !asset.isEmpty {
+            _locationIconImage = Self.loadFlutterAssetImage(
+                asset,
+                registrar: registrar
+            )
+        }
         super.init() // self can be used after calling super.init()
 
         let trimmed = initStyle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -145,5 +162,38 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
 
     func mapViewDidBecomeIdle(_ mapView: MLNMapView) {
         api?.didBecomeIdle(mapView: mapView)
+    }
+
+    func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+        guard annotation is MLNUserLocation else { return nil }
+
+        if _locationIconAssetPath != nil {
+            guard let image = _locationIconImage else {
+                return nil
+            }
+            var annotationView = mapView.dequeueReusableAnnotationView(
+                withIdentifier: Self.userLocationReuseId
+            )
+            if annotationView == nil {
+                annotationView = MLNAnnotationView(
+                    reuseIdentifier: Self.userLocationReuseId
+                )
+            }
+            annotationView?.image = image
+            return annotationView
+        }
+
+        return nil
+    }
+
+    private static func loadFlutterAssetImage(
+        _ assetPath: String,
+        registrar: FlutterPluginRegistrar
+    ) -> UIImage? {
+        let key = registrar.lookupKey(forAsset: assetPath)
+        guard let url = Bundle.main.url(forResource: key, withExtension: nil) else {
+            return nil
+        }
+        return UIImage(contentsOfFile: url.path)
     }
 }

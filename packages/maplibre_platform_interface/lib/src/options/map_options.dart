@@ -118,7 +118,7 @@ class MapOptions {
   /// Defaults to false.
   final bool webviewDebugMode;
 
-  /// Flutter asset path to a PNG used as the Android location puck.
+  /// Flutter asset path to a PNG used as the location puck (Android and iOS).
   ///
   /// When set, the map loads this asset when [MapController.enableLocation] is
   /// called. The default puck is not shown if the asset cannot be loaded.

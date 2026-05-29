@@ -19,11 +19,20 @@ class MapLibreViewFactory: NSObject, FlutterPlatformViewFactory {
         viewIdentifier viewId: Int64,
         arguments args: Any?
     ) -> FlutterPlatformView {
-        MapLibreView(
+        var initStyle = ""
+        var locationIconAsset: String?
+        if let dict = args as? [String: Any] {
+            initStyle = dict["initStyle"] as? String ?? ""
+            locationIconAsset = dict["locationIconAsset"] as? String
+        } else if let style = args as? String {
+            initStyle = style
+        }
+        return MapLibreView(
             registrar: _registrar,
             frame: frame,
             viewId: viewId,
-            initStyle: args as! String,
+            initStyle: initStyle,
+            locationIconAsset: locationIconAsset
         )
     }
 }

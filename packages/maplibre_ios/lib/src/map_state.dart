@@ -29,7 +29,10 @@ final class MapLibreMapStateIos extends MapLibreMapState {
       layoutDirection: TextDirection.ltr,
       gestureRecognizers: widget.gestureRecognizers,
       onPlatformViewCreated: _onPlatformViewCreated,
-      creationParams: options.initStyle,
+      creationParams: {
+        'initStyle': options.initStyle,
+        'locationIconAsset': ?options.locationIconAsset,
+      },
       creationParamsCodec: const StandardMessageCodec(),
     );
   }
@@ -172,10 +175,24 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     final mapView = _mapView;
     if (mapView == null) return;
 
+    final iconAsset = options.locationIconAsset;
+    if (iconAsset != null && iconAsset.isNotEmpty) {
+      try {
+        final data = await rootBundle.load(iconAsset);
+        if (data.lengthInBytes == 0) return;
+      } on Object {
+        return;
+      }
+    }
+
     mapView.showsUserLocation = true;
     // TODO: apply bearingRenderMode
     mapView.showsUserHeadingIndicator =
         bearingRenderMode != BearingRenderMode.none;
+
+    if (iconAsset != null && iconAsset.isNotEmpty) {
+      mapView.updateUserLocationAnnotationView();
+    }
   }
 
   @override
