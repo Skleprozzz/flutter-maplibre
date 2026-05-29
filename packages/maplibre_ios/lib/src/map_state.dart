@@ -28,14 +28,10 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     unawaited(_ensureLocationIconBytes());
   }
 
-  Future<Uint8List?> _ensureLocationIconBytes() {
+  Future<Uint8List?> _ensureLocationIconBytes() async {
     final asset = options.locationIconAsset;
-    if (asset == null || asset.isEmpty) {
-      return Future.value(null);
-    }
-    if (_locationIconBytes != null) {
-      return Future.value(_locationIconBytes);
-    }
+    if (asset == null || asset.isEmpty) return null;
+    if (_locationIconBytes != null) return _locationIconBytes;
     return _locationIconBytesFuture ??= loadLocationIconAssetBytes(asset).then((
       bytes,
     ) {
@@ -50,6 +46,7 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   @override
   Widget buildPlatformWidget(BuildContext context) {
     const viewType = 'plugins.flutter.io/maplibre';
+    final seed = _locationSeed;
     return UiKitView(
       viewType: viewType,
       layoutDirection: TextDirection.ltr,
@@ -58,10 +55,17 @@ final class MapLibreMapStateIos extends MapLibreMapState {
       creationParams: {
         'initStyle': options.initStyle,
         'locationIconAsset': ?options.locationIconAsset,
+        if (seed case final seed?) ...{
+          'locationSeedLat': seed.lat,
+          'locationSeedLon': seed.lon,
+        },
       },
       creationParamsCodec: const StandardMessageCodec(),
     );
   }
+
+  Geographic? get _locationSeed =>
+      options.initialLocation ?? options.initCenter;
 
   /// This method gets called when the platform view is created. It is not
   /// guaranteed that the map is ready.

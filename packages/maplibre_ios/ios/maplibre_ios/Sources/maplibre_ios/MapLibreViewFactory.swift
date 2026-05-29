@@ -21,9 +21,13 @@ class MapLibreViewFactory: NSObject, FlutterPlatformViewFactory {
     ) -> FlutterPlatformView {
         var initStyle = ""
         var locationIconAsset: String?
+        var locationSeedLat: Double?
+        var locationSeedLon: Double?
         if let dict = args as? [String: Any] {
             initStyle = dict["initStyle"] as? String ?? ""
             locationIconAsset = dict["locationIconAsset"] as? String
+            locationSeedLat = dict["locationSeedLat"] as? Double
+            locationSeedLon = dict["locationSeedLon"] as? Double
         } else if let style = args as? String {
             initStyle = style
         }
@@ -32,7 +36,9 @@ class MapLibreViewFactory: NSObject, FlutterPlatformViewFactory {
             frame: frame,
             viewId: viewId,
             initStyle: initStyle,
-            locationIconAsset: locationIconAsset
+            locationIconAsset: locationIconAsset,
+            locationSeedLat: locationSeedLat,
+            locationSeedLon: locationSeedLon
         )
     }
 }

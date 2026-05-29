@@ -1,8 +1,21 @@
 import Flutter
 import MapLibre
 
+private final class MapLibreCustomUserLocationAnnotationView: MLNUserLocationAnnotationView {
+    init(image: UIImage, reuseIdentifier: String) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        self.image = image
+        frame = CGRect(origin: .zero, size: image.size)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
 class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, MLNMapViewDelegate {
     private static let userLocationReuseId = "MapLibreUserLocation"
+    private static let seedLocationReuseId = "MapLibreSeedLocation"
 
     private var _view: UIView = .init()
     private var _viewId: Int64
@@ -10,13 +23,17 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
     private var _registrar: FlutterPluginRegistrar
     private var _locationIconAssetPath: String?
     private var _locationIconImage: UIImage?
+    private var _locationSeedCoordinate: CLLocationCoordinate2D?
+    private var _seedAnnotation: MLNPointAnnotation?
 
     init(
         registrar: FlutterPluginRegistrar,
         frame: CGRect,
         viewId: Int64,
         initStyle: String,
-        locationIconAsset: String? = nil
+        locationIconAsset: String? = nil,
+        locationSeedLat: Double? = nil,
+        locationSeedLon: Double? = nil
     ) {
         _registrar = registrar
         _viewId = viewId
@@ -26,6 +43,9 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
                 asset,
                 registrar: registrar
             )
+        }
+        if let lat = locationSeedLat, let lon = locationSeedLon {
+            _locationSeedCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
         }
         super.init() // self can be used after calling super.init()
 
@@ -146,12 +166,16 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         api?.didFinishLoadingStyle(mapView: mapView, style: style)
+        showSeedLocationMarkerIfNeeded()
         if mapView.showsUserLocation, _locationIconImage != nil {
             mapView.updateUserLocationAnnotationView()
         }
     }
 
     func mapView(_ mapView: MLNMapView, didUpdate userLocation: MLNUserLocation?) {
+        if userLocation?.location != nil {
+            removeSeedLocationMarker()
+        }
         if _locationIconAssetPath != nil, _locationIconImage != nil {
             mapView.updateUserLocationAnnotationView()
         }
@@ -174,6 +198,20 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
     }
 
     func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+        if let seed = _seedAnnotation, annotation === seed {
+            guard let image = _locationIconImage else { return nil }
+            var annotationView = mapView.dequeueReusableAnnotationView(
+                withIdentifier: Self.seedLocationReuseId
+            )
+            if annotationView == nil {
+                annotationView = MLNAnnotationView(
+                    reuseIdentifier: Self.seedLocationReuseId
+                )
+            }
+            annotationView?.image = image
+            return annotationView
+        }
+
         guard annotation is MLNUserLocation else { return nil }
 
         if _locationIconAssetPath != nil {
@@ -182,17 +220,41 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
             }
             var annotationView = mapView.dequeueReusableAnnotationView(
                 withIdentifier: Self.userLocationReuseId
-            )
+            ) as? MapLibreCustomUserLocationAnnotationView
             if annotationView == nil {
-                annotationView = MLNAnnotationView(
+                annotationView = MapLibreCustomUserLocationAnnotationView(
+                    image: image,
                     reuseIdentifier: Self.userLocationReuseId
                 )
+            } else {
+                annotationView?.image = image
             }
-            annotationView?.image = image
             return annotationView
         }
 
         return nil
+    }
+
+    private func showSeedLocationMarkerIfNeeded() {
+        guard _locationIconImage != nil,
+              _seedAnnotation == nil,
+              let coordinate = _locationSeedCoordinate
+        else { return }
+
+        if _mapView.userLocation?.location != nil {
+            return
+        }
+
+        let annotation = MLNPointAnnotation()
+        annotation.coordinate = coordinate
+        _seedAnnotation = annotation
+        _mapView.addAnnotation(annotation)
+    }
+
+    private func removeSeedLocationMarker() {
+        guard let seed = _seedAnnotation else { return }
+        _mapView.removeAnnotation(seed)
+        _seedAnnotation = nil
     }
 
     private static func loadFlutterAssetImage(

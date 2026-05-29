@@ -1,8 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:flutter/services.dart';
 
-/// Loads PNG bytes for [MapOptions.locationIconAsset].
+/// Loads PNG bytes for a location icon [Flutter asset](https://docs.flutter.dev/ui/assets/assets-and-images) path.
 Future<Uint8List?> loadLocationIconAssetBytes(String asset) async {
   if (asset.isEmpty) return null;
   try {

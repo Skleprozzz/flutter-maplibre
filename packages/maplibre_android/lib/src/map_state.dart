@@ -503,21 +503,36 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     layerManager = LayerManager(styleCtrl, widget.layers);
     if (mounted) setState(() {});
     unawaited(() async {
-      await _registerLocationIcon();
+      if (_hasCustomLocationIcon) {
+        await _setupCustomLocationPuck();
+      }
       if (_locationServicesEnabled || _pendingEnableLocation) {
         await _applyEnableLocation();
       }
     }());
   }
 
-  Future<Uint8List?> _ensureLocationIconBytes() {
+  bool get _hasCustomLocationIcon {
     final asset = options.locationIconAsset;
-    if (asset == null || asset.isEmpty) {
-      return Future.value(null);
-    }
-    if (_locationIconBytes != null) {
-      return Future.value(_locationIconBytes);
-    }
+    return asset != null && asset.isNotEmpty;
+  }
+
+  Geographic? get _locationSeed =>
+      options.initialLocation ??
+      options.initCenter ??
+      (_hasCustomLocationIcon ? getCamera().center : null);
+
+  /// Activates the location component with the custom icon and a seeded
+  /// position, without starting the GPS engine yet.
+  Future<void> _setupCustomLocationPuck() async {
+    if (!await _registerLocationIcon()) return;
+    await _applyEnableLocation(useLocationEngine: false);
+  }
+
+  Future<Uint8List?> _ensureLocationIconBytes() async {
+    final asset = options.locationIconAsset;
+    if (asset == null || asset.isEmpty) return null;
+    if (_locationIconBytes != null) return _locationIconBytes;
     return _locationIconBytesFuture ??= loadLocationIconAssetBytes(asset).then((
       bytes,
     ) {
@@ -740,8 +755,11 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
+    bool useLocationEngine = true,
   }) async {
-    _pendingEnableLocation = false;
+    if (useLocationEngine) {
+      _pendingEnableLocation = false;
+    }
     final style = this.style;
     if (style == null) return;
 
@@ -752,10 +770,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
       bytes = _locationIconBytes;
     }
 
-    final seedLocation =
-        options.initialLocation ??
-        options.initCenter ??
-        (bytes != null ? getCamera().center : null);
+    final seedLocation = _locationSeed;
 
     using((arena) {
       final bearing = switch (bearingRenderMode) {
@@ -763,20 +778,29 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
         BearingRenderMode.compass => jni.RenderMode.COMPASS,
         BearingRenderMode.gps => jni.RenderMode.GPS,
       };
+      final renderMode = useLocationEngine ? bearing : jni.RenderMode.NORMAL;
       final jniContext = getJContext();
       var locOptionsBuilder =
           jni.LocationComponentOptions.builder(jniContext)
                 .pulseFadeEnabled(pulseFade)!
                 .accuracyAnimationEnabled(accuracyAnimation)!
                 .compassAnimationEnabled(compassAnimation.toJBoolean())!
-                .pulseEnabled(pulse)!
             ..releasedBy(arena);
       if (bytes != null && bytes.isNotEmpty) {
         final iconId = MapController.defaultLocationIconStyleId.toJString()
           ..releasedBy(arena);
         locOptionsBuilder = locOptionsBuilder
+            .pulseEnabled(false)!
+            .accuracyAlpha(0)
+            .enableStaleState(false)
             .foregroundName(iconId)
-            .gpsName(iconId);
+            .gpsName(iconId)
+            .bearingName(iconId)
+            .backgroundName(iconId)
+            .foregroundStaleName(iconId)
+            .backgroundStaleName(iconId);
+      } else {
+        locOptionsBuilder = locOptionsBuilder.pulseEnabled(pulse)!;
       }
       final locOptions = locOptionsBuilder.build()..releasedBy(arena);
       final locationEngineRequestBuilder =
@@ -793,14 +817,14 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
                   style._jStyle,
                 )
                 .locationComponentOptions(locOptions)!
-                .useDefaultLocationEngine(true)!
+                .useDefaultLocationEngine(useLocationEngine)!
                 .locationEngineRequest(locationEngineRequest)!
             ..releasedBy(arena);
       final activationOptions = activationOptionsBuilder.build()!
         ..releasedBy(arena);
 
       _jLocationComponent.activateLocationComponent(activationOptions);
-      _jLocationComponent.renderMode = bearing;
+      _jLocationComponent.renderMode = renderMode;
       _jLocationComponent.locationComponentEnabled = true;
 
       if (seedLocation != null) {
@@ -812,6 +836,20 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
         _jLocationComponent.forceLocationUpdate(location);
       }
     });
+
+    if (seedLocation != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _jMap == null) return;
+        using((arena) {
+          final provider = 'maplibre-seed'.toJString()..releasedBy(arena);
+          final location = jni.Location.new$1(provider)..releasedBy(arena);
+          location.latitude = seedLocation.lat;
+          location.longitude = seedLocation.lon;
+          location.time = DateTime.now().millisecondsSinceEpoch;
+          _jLocationComponent.forceLocationUpdate(location);
+        });
+      });
+    }
   }
 
   @override
