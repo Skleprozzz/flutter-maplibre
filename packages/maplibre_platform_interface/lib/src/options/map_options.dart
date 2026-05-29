@@ -30,6 +30,8 @@ class MapOptions {
     this.androidTranslucentTextureSurface = false,
     this.androidForegroundLoadColor = Colors.transparent,
     this.webviewDebugMode = false,
+    this.locationIconAsset,
+    this.initialLocation,
   }) : initPitch = pitch ?? initPitch;
 
   /// Find the [MapOptions] of the closest [MapLibreMap] in the widget tree.
@@ -115,4 +117,14 @@ class MapOptions {
   /// by pressing F12 while the map has focus.
   /// Defaults to false.
   final bool webviewDebugMode;
+
+  /// Flutter asset path to a PNG used as the Android location puck.
+  ///
+  /// When set, the map loads this asset when [MapController.enableLocation] is
+  /// called. The default puck is not shown if the asset cannot be loaded.
+  final String? locationIconAsset;
+
+  /// Android only: seeds the location component when no fused fix exists yet
+  /// (emulator / cold start).
+  final Geographic? initialLocation;
 }

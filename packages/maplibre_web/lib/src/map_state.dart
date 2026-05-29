@@ -400,7 +400,7 @@ final class MapLibreMapStateWeb extends MapLibreMapState {
   }
 
   @override
-  Future<bool> enableLocation({
+  Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
     bool pulseFade = true,
@@ -408,26 +408,8 @@ final class MapLibreMapStateWeb extends MapLibreMapState {
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
-    Uint8List? locationIconPng,
-    Future<Uint8List?> Function()? resolveLocationIconPng,
-    bool requireLocationIcon = false,
-    String locationIconStyleId = MapController.defaultLocationIconStyleId,
-    Geographic? initialLocation,
   }) async {
-    final bytes = await resolveEnableLocationIconBytes(
-      locationIconPng: locationIconPng,
-      resolveLocationIconPng: resolveLocationIconPng,
-    );
-    if (shouldDeferEnableLocation(
-      requireLocationIcon: requireLocationIcon,
-      resolveLocationIconPng: resolveLocationIconPng,
-      resolvedBytes: bytes,
-    )) {
-      return false;
-    }
-
     debugPrint("Can't enable the user location on web programmatically.");
-    return true;
   }
 
   @override

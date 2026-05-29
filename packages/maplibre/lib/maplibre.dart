@@ -17,7 +17,6 @@ export 'package:maplibre_platform_interface/maplibre_platform_interface.dart'
         GeoJsonSource,
         HeatmapStyleLayer,
         HillshadeStyleLayer,
-        hasEnableLocationIconBytes,
         ImageSource,
         Layer,
         LineStyleLayer,

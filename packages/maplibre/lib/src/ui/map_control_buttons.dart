@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:maplibre/maplibre.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
@@ -22,10 +19,6 @@ class MapControlButtons extends StatefulWidget {
     this.padding = const EdgeInsets.symmetric(vertical: 50, horizontal: 12),
     this.alignment = Alignment.bottomRight,
     this.showTrackLocation = false,
-    this.locationIconPng,
-    this.waitForLocationIcon = false,
-    this.resolveLocationIconPng,
-    this.resolveInitialLocation,
     this.requestPermissionsExplanation =
         'We need your location to show it on the map.',
   });
@@ -41,23 +34,6 @@ class MapControlButtons extends StatefulWidget {
   /// This button is currently not available on web.
   final bool showTrackLocation;
 
-  /// Pre-rendered PNG for Android location puck (see [MapController.enableLocation]).
-  final Uint8List? locationIconPng;
-
-  /// When true, defer enabling until [locationIconPng] is non-null.
-  ///
-  /// Also implied when [resolveLocationIconPng] is set.
-  final bool waitForLocationIcon;
-
-  /// Loads puck PNG bytes before enabling location (e.g. async asset rasterization).
-  ///
-  /// While bytes are loading or still null, location is not enabled and the
-  /// default puck is not shown.
-  final Future<Uint8List?> Function()? resolveLocationIconPng;
-
-  /// Optional seed fix before enabling (Android cold start / emulator).
-  final Future<Geographic?> Function()? resolveInitialLocation;
-
   /// The explanation to show when requesting location permissions.
   final String requestPermissionsExplanation;
 
@@ -69,14 +45,9 @@ class _MapControlButtonsState extends State<MapControlButtons> {
   late final PermissionManager? _permissionManager;
   _TrackLocationState _trackState = _TrackLocationState.gpsNotFixed;
   late bool _trackLocationButtonInitialized = false;
-  bool _pendingLocationEnable = false;
-  bool _pendingTrackLocation = true;
 
   bool get _showLocationButton =>
       MapController.userLocationIsSupported && widget.showTrackLocation;
-
-  bool get _waitsForLocationIcon =>
-      widget.waitForLocationIcon || widget.resolveLocationIconPng != null;
 
   @override
   void initState() {
@@ -84,39 +55,6 @@ class _MapControlButtonsState extends State<MapControlButtons> {
     if (_showLocationButton) {
       _permissionManager = PermissionManager();
     }
-  }
-
-  @override
-  void didUpdateWidget(MapControlButtons oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    final controller = MapController.maybeOf(context);
-    if (controller == null) return;
-
-    final iconReady =
-        !_waitsForLocationIcon ||
-        (oldWidget.locationIconPng == null &&
-            hasEnableLocationIconBytes(widget.locationIconPng));
-    final iconChanged = oldWidget.locationIconPng != widget.locationIconPng;
-
-    if (iconReady && _pendingLocationEnable) {
-      unawaited(
-        _enableLocationServices(
-          controller,
-          trackLocation: _pendingTrackLocation,
-        ),
-      );
-      return;
-    }
-
-    if (!iconChanged) return;
-    if (_trackState != _TrackLocationState.gpsFixed) return;
-    if (_waitsForLocationIcon &&
-        !hasEnableLocationIconBytes(widget.locationIconPng)) {
-      return;
-    }
-
-    unawaited(_enableLocationServices(controller, trackLocation: false));
   }
 
   @override
@@ -205,57 +143,16 @@ class _MapControlButtonsState extends State<MapControlButtons> {
     MapController controller, {
     bool trackLocation = true,
   }) async {
-    _pendingLocationEnable = false;
-    _pendingTrackLocation = trackLocation;
-
     if (!_permissionManager!.locationPermissionsGranted) {
       setState(() => _trackState = _TrackLocationState.gpsNotFixed);
-      return;
-    }
-
-    if (controller.style == null) {
-      _pendingLocationEnable = true;
-      _pendingTrackLocation = trackLocation;
-      setState(() => _trackState = _TrackLocationState.loading);
-      for (var i = 0; i < 30; i++) {
-        if (!mounted) return;
-        if (controller.style != null) break;
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      }
-      if (controller.style == null) {
-        setState(() => _trackState = _TrackLocationState.gpsNotFixed);
-        return;
-      }
     }
 
     try {
-      if (_waitsForLocationIcon && mounted) {
-        setState(() => _trackState = _TrackLocationState.loading);
-      }
-
-      final initial = widget.resolveInitialLocation != null
-          ? await widget.resolveInitialLocation!()
-          : null;
-
-      final enabled = await controller.enableLocation(
-        locationIconPng: widget.locationIconPng,
-        resolveLocationIconPng: widget.resolveLocationIconPng,
-        requireLocationIcon: _waitsForLocationIcon,
-        initialLocation: initial,
-      );
-      if (!mounted) return;
-      if (!enabled) {
-        _pendingLocationEnable = true;
-        _pendingTrackLocation = trackLocation;
-        setState(() => _trackState = _TrackLocationState.loading);
-        return;
-      }
-
+      await controller.enableLocation();
       setState(() => _trackState = _TrackLocationState.gpsFixed);
 
       if (trackLocation) await controller.trackLocation();
     } on Exception {
-      if (!mounted) return;
       setState(() => _trackState = _TrackLocationState.gpsNotFixed);
     }
   }

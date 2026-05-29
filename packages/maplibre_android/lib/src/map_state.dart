@@ -667,7 +667,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   });
 
   @override
-  Future<bool> enableLocation({
+  Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
     bool pulseFade = true,
@@ -675,31 +675,24 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
-    Uint8List? locationIconPng,
-    Future<Uint8List?> Function()? resolveLocationIconPng,
-    bool requireLocationIcon = false,
-    String locationIconStyleId = MapController.defaultLocationIconStyleId,
-    Geographic? initialLocation,
   }) async {
-    // https://maplibre.org/maplibre-native/docs/book/android/location-component-guide.html
     final style = this.style;
-    if (style == null) return false;
+    if (style == null) return;
 
-    final bytes = await resolveEnableLocationIconBytes(
-      locationIconPng: locationIconPng,
-      resolveLocationIconPng: resolveLocationIconPng,
-    );
-    if (shouldDeferEnableLocation(
-      requireLocationIcon: requireLocationIcon,
-      resolveLocationIconPng: resolveLocationIconPng,
-      resolvedBytes: bytes,
-    )) {
-      return false;
+    final iconAsset = options.locationIconAsset;
+    Uint8List? bytes;
+    if (iconAsset != null && iconAsset.isNotEmpty) {
+      try {
+        final data = await rootBundle.load(iconAsset);
+        bytes = data.buffer.asUint8List();
+      } on Object {
+        return;
+      }
+      if (bytes.isEmpty) return;
+      await style.addImage(MapController.defaultLocationIconStyleId, bytes);
     }
 
-    if (hasEnableLocationIconBytes(bytes)) {
-      await style.addImage(locationIconStyleId, bytes!);
-    }
+    final initialLocation = options.initialLocation;
 
     using((arena) {
       final bearing = switch (bearingRenderMode) {
@@ -716,7 +709,8 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
                 .pulseEnabled(pulse)!
             ..releasedBy(arena);
       if (bytes != null && bytes.isNotEmpty) {
-        final iconId = locationIconStyleId.toJString()..releasedBy(arena);
+        final iconId = MapController.defaultLocationIconStyleId.toJString()
+          ..releasedBy(arena);
         locOptionsBuilder = locOptionsBuilder
             .foregroundName(iconId)
             .gpsName(iconId);
@@ -755,7 +749,6 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
         _jLocationComponent.forceLocationUpdate(location);
       }
     });
-    return true;
   }
 
   @override

@@ -2,7 +2,6 @@
 // all maplibre packages.
 export 'package:geobase/geobase.dart';
 
-export 'src/enable_location.dart';
 export 'src/extensions.dart';
 export 'src/layer/layer.dart';
 export 'src/layer/layer_manager.dart';

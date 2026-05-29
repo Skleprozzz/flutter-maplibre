@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/widgets.dart';
 import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
 import 'package:maplibre_platform_interface/src/widget/inherited_model.dart';
@@ -137,22 +135,15 @@ abstract interface class MapController {
   // that match all of the filters will be returned.
   List<RenderedFeature> featuresInRect(Rect rect, {List<String>? layerIds});
 
-  /// Default style image id for [locationIconPng] on Android LocationComponent.
+  /// Style image id used for [MapOptions.locationIconAsset] on Android.
   static const String defaultLocationIconStyleId =
       'maplibre_user_location_icon';
 
   /// Show the user location on the map.
   ///
-  /// [locationIconPng] — optional puck bitmap (Android: added via [StyleController.addImage]).
-  /// [resolveLocationIconPng] — loads puck bytes before enabling (e.g. async rasterization).
-  /// [requireLocationIcon] — when true, do not enable (or show the default puck) until
-  /// custom icon bytes are available from [locationIconPng] or [resolveLocationIconPng].
-  /// Also implied when [resolveLocationIconPng] is set.
-  /// [initialLocation] — Android only: seeds the component when no fused fix exists yet.
-  ///
-  /// Returns `false` when enabling was skipped because a custom icon was required but
-  /// bytes were not available yet.
-  Future<bool> enableLocation({
+  /// When [MapOptions.locationIconAsset] is set on the parent [MapLibreMap],
+  /// the custom puck is loaded from that asset (Android only).
+  Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
     bool pulseFade = true,
@@ -160,11 +151,6 @@ abstract interface class MapController {
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
-    Uint8List? locationIconPng,
-    Future<Uint8List?> Function()? resolveLocationIconPng,
-    bool requireLocationIcon = false,
-    String locationIconStyleId = defaultLocationIconStyleId,
-    Geographic? initialLocation,
   });
 
   /// Track the user location on the map
