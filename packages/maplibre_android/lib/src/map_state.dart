@@ -553,6 +553,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
       scale: options.locationModelScale,
     );
     _locationModelAttached = true;
+    await _applyEnableLocation(useLocationEngine: false);
     _updateLocationModelOverlay();
   }
 

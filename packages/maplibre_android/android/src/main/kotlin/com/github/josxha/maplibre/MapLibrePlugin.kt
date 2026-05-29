@@ -125,7 +125,10 @@ class MapLibreMapFactory : PlatformViewFactory(StandardMessageCodec.INSTANCE) {
         args: Any?,
     ): PlatformView {
         val delegate = MapLibreRegistry.flutterApi!!.createPlatformView(viewId)
-        return RegisteredPlatformView(viewId, delegate)
+        return RegisteredPlatformView(viewId, delegate).also {
+            // Ensure the native registry is populated before Dart attaches overlays.
+            it.getView()
+        }
     }
 }
 
