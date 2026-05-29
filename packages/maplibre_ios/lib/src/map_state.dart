@@ -168,7 +168,11 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
+    Uint8List? locationIconPng,
+    String locationIconStyleId = MapController.defaultLocationIconStyleId,
+    Geographic? initialLocation,
   }) async {
+    // iOS: system puck only; parameters ignored.
     final mapView = _mapView;
     if (mapView == null) return;
 

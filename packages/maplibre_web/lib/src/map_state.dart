@@ -408,6 +408,9 @@ final class MapLibreMapStateWeb extends MapLibreMapState {
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
+    Uint8List? locationIconPng,
+    String locationIconStyleId = MapController.defaultLocationIconStyleId,
+    Geographic? initialLocation,
   }) async {
     debugPrint("Can't enable the user location on web programmatically.");
   }

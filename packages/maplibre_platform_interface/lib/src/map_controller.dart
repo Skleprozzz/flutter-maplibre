@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
 import 'package:maplibre_platform_interface/src/widget/inherited_model.dart';
@@ -135,7 +137,14 @@ abstract interface class MapController {
   // that match all of the filters will be returned.
   List<RenderedFeature> featuresInRect(Rect rect, {List<String>? layerIds});
 
-  /// Show the user location on the map
+  /// Default style image id for [locationIconPng] on Android LocationComponent.
+  static const String defaultLocationIconStyleId =
+      'maplibre_user_location_icon';
+
+  /// Show the user location on the map.
+  ///
+  /// [locationIconPng] — optional puck bitmap (Android: added via [StyleController.addImage]).
+  /// [initialLocation] — Android only: seeds the component when no fused fix exists yet.
   Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
@@ -144,6 +153,9 @@ abstract interface class MapController {
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
+    Uint8List? locationIconPng,
+    String locationIconStyleId = defaultLocationIconStyleId,
+    Geographic? initialLocation,
   });
 
   /// Track the user location on the map

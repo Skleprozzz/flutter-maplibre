@@ -675,49 +675,74 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     bool compassAnimation = true,
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
-  }) async => using((arena) {
+    Uint8List? locationIconPng,
+    String locationIconStyleId = MapController.defaultLocationIconStyleId,
+    Geographic? initialLocation,
+  }) async {
     // https://maplibre.org/maplibre-native/docs/book/android/location-component-guide.html
     final style = this.style;
     if (style == null) return;
 
-    final bearing = switch (bearingRenderMode) {
-      BearingRenderMode.none => jni.RenderMode.NORMAL,
-      BearingRenderMode.compass => jni.RenderMode.COMPASS,
-      BearingRenderMode.gps => jni.RenderMode.GPS,
-    };
-    final jniContext = getJContext();
-    final locOptionsBuilder =
-        jni.LocationComponentOptions.builder(jniContext)
-              .pulseFadeEnabled(pulseFade)!
-              .accuracyAnimationEnabled(accuracyAnimation)!
-              .compassAnimationEnabled(compassAnimation.toJBoolean())!
-              .pulseEnabled(pulse)!
-          ..releasedBy(arena);
-    final locOptions = locOptionsBuilder.build()..releasedBy(arena);
-    final locationEngineRequestBuilder =
-        jni.LocationEngineRequest$Builder(750) // TODO integrate as parameter
-              .setFastestInterval(fastestInterval.inMilliseconds)!
-              .setMaxWaitTime(maxWaitTime.inMilliseconds)!
-              .setPriority(jni.LocationEngineRequest.PRIORITY_HIGH_ACCURACY)!
-          ..releasedBy(arena);
-    final locationEngineRequest = locationEngineRequestBuilder.build()
-      ?..releasedBy(arena);
-    final activationOptionsBuilder =
-        jni.LocationComponentActivationOptions.builder(
-                jniContext,
-                style._jStyle,
-              )
-              .locationComponentOptions(locOptions)!
-              .useDefaultLocationEngine(true)!
-              .locationEngineRequest(locationEngineRequest)!
-          ..releasedBy(arena);
-    final activationOptions = activationOptionsBuilder.build()!
-      ..releasedBy(arena);
+    final bytes = locationIconPng;
+    if (bytes != null && bytes.isNotEmpty) {
+      await style.addImage(locationIconStyleId, bytes);
+    }
 
-    _jLocationComponent.activateLocationComponent(activationOptions);
-    _jLocationComponent.renderMode = bearing;
-    _jLocationComponent.locationComponentEnabled = true;
-  });
+    return using((arena) {
+      final bearing = switch (bearingRenderMode) {
+        BearingRenderMode.none => jni.RenderMode.NORMAL,
+        BearingRenderMode.compass => jni.RenderMode.COMPASS,
+        BearingRenderMode.gps => jni.RenderMode.GPS,
+      };
+      final jniContext = getJContext();
+      var locOptionsBuilder =
+          jni.LocationComponentOptions.builder(jniContext)
+                .pulseFadeEnabled(pulseFade)!
+                .accuracyAnimationEnabled(accuracyAnimation)!
+                .compassAnimationEnabled(compassAnimation.toJBoolean())!
+                .pulseEnabled(pulse)!
+            ..releasedBy(arena);
+      if (bytes != null && bytes.isNotEmpty) {
+        final iconId = locationIconStyleId.toJString()..releasedBy(arena);
+        locOptionsBuilder = locOptionsBuilder
+            .foregroundName(iconId)
+            .gpsName(iconId);
+      }
+      final locOptions = locOptionsBuilder.build()..releasedBy(arena);
+      final locationEngineRequestBuilder =
+          jni.LocationEngineRequest$Builder(750) // TODO integrate as parameter
+                .setFastestInterval(fastestInterval.inMilliseconds)!
+                .setMaxWaitTime(maxWaitTime.inMilliseconds)!
+                .setPriority(jni.LocationEngineRequest.PRIORITY_HIGH_ACCURACY)!
+            ..releasedBy(arena);
+      final locationEngineRequest = locationEngineRequestBuilder.build()
+        ?..releasedBy(arena);
+      final activationOptionsBuilder =
+          jni.LocationComponentActivationOptions.builder(
+                  jniContext,
+                  style._jStyle,
+                )
+                .locationComponentOptions(locOptions)!
+                .useDefaultLocationEngine(true)!
+                .locationEngineRequest(locationEngineRequest)!
+            ..releasedBy(arena);
+      final activationOptions = activationOptionsBuilder.build()!
+        ..releasedBy(arena);
+
+      _jLocationComponent.activateLocationComponent(activationOptions);
+      _jLocationComponent.renderMode = bearing;
+      _jLocationComponent.locationComponentEnabled = true;
+
+      if (initialLocation != null) {
+        final provider = 'maplibre-seed'.toJString()..releasedBy(arena);
+        final location = jni.Location.new$1(provider)..releasedBy(arena);
+        location.latitude = initialLocation.lat;
+        location.longitude = initialLocation.lon;
+        location.time = DateTime.now().millisecondsSinceEpoch;
+        _jLocationComponent.forceLocationUpdate(location);
+      }
+    });
+  }
 
   @override
   Future<void> trackLocation({
@@ -818,11 +843,20 @@ final class _CameraMovementCallback with jni.$MapLibreMap$CancelableCallback {
   final Completer<void> completer;
 
   @override
-  void onCancel() =>
-      completer.completeError(Exception('Map camera movement cancelled.'));
+  void onCancel() {
+    // Overlapping animateCamera/fitBounds calls cancel the previous animation.
+    // This is expected; do not surface as an unhandled async error.
+    if (!completer.isCompleted) {
+      completer.complete();
+    }
+  }
 
   @override
-  void onFinish() => completer.complete();
+  void onFinish() {
+    if (!completer.isCompleted) {
+      completer.complete();
+    }
+  }
 
   @override
   bool get onCancel$async => true;
