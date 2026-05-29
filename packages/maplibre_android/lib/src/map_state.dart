@@ -637,6 +637,16 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     });
   }
 
+  Future<bool> _registerHiddenLocationPuckIcon() async {
+    final style = this.style;
+    if (style == null) return false;
+    await style.addImage(
+      MapController.hiddenLocationIconStyleId,
+      transparentLocationIconPng,
+    );
+    return true;
+  }
+
   Future<bool> _registerLocationIcon() async {
     final asset = options.locationIconAsset;
     if (asset == null || asset.isEmpty) return true;
@@ -864,6 +874,8 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     if (_hasCustomLocationIcon && iconAsset != null && iconAsset.isNotEmpty) {
       if (!await _registerLocationIcon()) return;
       bytes = _locationIconBytes;
+    } else if (_hasCustomLocationModel) {
+      if (!await _registerHiddenLocationPuckIcon()) return;
     }
 
     final seedLocation = _locationSeed;
@@ -896,10 +908,18 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
             .foregroundStaleName(iconId)
             .backgroundStaleName(iconId);
       } else if (_hasCustomLocationModel) {
+        final iconId = MapController.hiddenLocationIconStyleId.toJString()
+          ..releasedBy(arena);
         locOptionsBuilder = locOptionsBuilder
             .pulseEnabled(false)!
             .accuracyAlpha(0)
-            .enableStaleState(false)!;
+            .enableStaleState(false)
+            .foregroundName(iconId)
+            .gpsName(iconId)
+            .bearingName(iconId)
+            .backgroundName(iconId)
+            .foregroundStaleName(iconId)
+            .backgroundStaleName(iconId);
       } else {
         locOptionsBuilder = locOptionsBuilder.pulseEnabled(pulse)!;
       }

@@ -139,6 +139,11 @@ abstract interface class MapController {
   static const String defaultLocationIconStyleId =
       'maplibre_user_location_icon';
 
+  /// Style image id for an invisible puck when [MapOptions.locationModelAsset]
+  /// is used on Android.
+  static const String hiddenLocationIconStyleId =
+      'maplibre_hidden_location_icon';
+
   /// Show the user location on the map.
   ///
   /// When [MapOptions.locationIconAsset] is set on the parent [MapLibreMap],
