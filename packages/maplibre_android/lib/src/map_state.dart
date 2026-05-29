@@ -667,7 +667,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   });
 
   @override
-  Future<void> enableLocation({
+  Future<bool> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
     bool pulseFade = true,
@@ -676,19 +676,32 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
     Uint8List? locationIconPng,
+    Future<Uint8List?> Function()? resolveLocationIconPng,
+    bool requireLocationIcon = false,
     String locationIconStyleId = MapController.defaultLocationIconStyleId,
     Geographic? initialLocation,
   }) async {
     // https://maplibre.org/maplibre-native/docs/book/android/location-component-guide.html
     final style = this.style;
-    if (style == null) return;
+    if (style == null) return false;
 
-    final bytes = locationIconPng;
-    if (bytes != null && bytes.isNotEmpty) {
-      await style.addImage(locationIconStyleId, bytes);
+    final bytes = await resolveEnableLocationIconBytes(
+      locationIconPng: locationIconPng,
+      resolveLocationIconPng: resolveLocationIconPng,
+    );
+    if (shouldDeferEnableLocation(
+      requireLocationIcon: requireLocationIcon,
+      resolveLocationIconPng: resolveLocationIconPng,
+      resolvedBytes: bytes,
+    )) {
+      return false;
     }
 
-    return using((arena) {
+    if (hasEnableLocationIconBytes(bytes)) {
+      await style.addImage(locationIconStyleId, bytes!);
+    }
+
+    using((arena) {
       final bearing = switch (bearingRenderMode) {
         BearingRenderMode.none => jni.RenderMode.NORMAL,
         BearingRenderMode.compass => jni.RenderMode.COMPASS,
@@ -742,6 +755,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
         _jLocationComponent.forceLocationUpdate(location);
       }
     });
+    return true;
   }
 
   @override

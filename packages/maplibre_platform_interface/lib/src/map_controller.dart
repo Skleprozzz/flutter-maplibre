@@ -144,8 +144,15 @@ abstract interface class MapController {
   /// Show the user location on the map.
   ///
   /// [locationIconPng] — optional puck bitmap (Android: added via [StyleController.addImage]).
+  /// [resolveLocationIconPng] — loads puck bytes before enabling (e.g. async rasterization).
+  /// [requireLocationIcon] — when true, do not enable (or show the default puck) until
+  /// custom icon bytes are available from [locationIconPng] or [resolveLocationIconPng].
+  /// Also implied when [resolveLocationIconPng] is set.
   /// [initialLocation] — Android only: seeds the component when no fused fix exists yet.
-  Future<void> enableLocation({
+  ///
+  /// Returns `false` when enabling was skipped because a custom icon was required but
+  /// bytes were not available yet.
+  Future<bool> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
     bool pulseFade = true,
@@ -154,6 +161,8 @@ abstract interface class MapController {
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
     Uint8List? locationIconPng,
+    Future<Uint8List?> Function()? resolveLocationIconPng,
+    bool requireLocationIcon = false,
     String locationIconStyleId = defaultLocationIconStyleId,
     Geographic? initialLocation,
   });

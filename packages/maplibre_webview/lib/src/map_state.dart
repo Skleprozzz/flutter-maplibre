@@ -265,7 +265,7 @@ class MapLibreMapStateWebView extends MapLibreMapState {
   }
 
   @override
-  Future<void> enableLocation({
+  Future<bool> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
     bool pulseFade = true,
@@ -274,10 +274,25 @@ class MapLibreMapStateWebView extends MapLibreMapState {
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
     Uint8List? locationIconPng,
+    Future<Uint8List?> Function()? resolveLocationIconPng,
+    bool requireLocationIcon = false,
     String locationIconStyleId = MapController.defaultLocationIconStyleId,
     Geographic? initialLocation,
   }) async {
+    final bytes = await resolveEnableLocationIconBytes(
+      locationIconPng: locationIconPng,
+      resolveLocationIconPng: resolveLocationIconPng,
+    );
+    if (shouldDeferEnableLocation(
+      requireLocationIcon: requireLocationIcon,
+      resolveLocationIconPng: resolveLocationIconPng,
+      resolvedBytes: bytes,
+    )) {
+      return false;
+    }
+
     debugPrint("Can't track the user location on web.");
+    return true;
   }
 
   @override

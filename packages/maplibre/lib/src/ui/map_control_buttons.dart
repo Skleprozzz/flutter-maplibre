@@ -24,6 +24,7 @@ class MapControlButtons extends StatefulWidget {
     this.showTrackLocation = false,
     this.locationIconPng,
     this.waitForLocationIcon = false,
+    this.resolveLocationIconPng,
     this.resolveInitialLocation,
     this.requestPermissionsExplanation =
         'We need your location to show it on the map.',
@@ -44,7 +45,15 @@ class MapControlButtons extends StatefulWidget {
   final Uint8List? locationIconPng;
 
   /// When true, defer enabling until [locationIconPng] is non-null.
+  ///
+  /// Also implied when [resolveLocationIconPng] is set.
   final bool waitForLocationIcon;
+
+  /// Loads puck PNG bytes before enabling location (e.g. async asset rasterization).
+  ///
+  /// While bytes are loading or still null, location is not enabled and the
+  /// default puck is not shown.
+  final Future<Uint8List?> Function()? resolveLocationIconPng;
 
   /// Optional seed fix before enabling (Android cold start / emulator).
   final Future<Geographic?> Function()? resolveInitialLocation;
@@ -66,6 +75,9 @@ class _MapControlButtonsState extends State<MapControlButtons> {
   bool get _showLocationButton =>
       MapController.userLocationIsSupported && widget.showTrackLocation;
 
+  bool get _waitsForLocationIcon =>
+      widget.waitForLocationIcon || widget.resolveLocationIconPng != null;
+
   @override
   void initState() {
     super.initState();
@@ -82,8 +94,9 @@ class _MapControlButtonsState extends State<MapControlButtons> {
     if (controller == null) return;
 
     final iconReady =
-        !widget.waitForLocationIcon ||
-        (oldWidget.locationIconPng == null && widget.locationIconPng != null);
+        !_waitsForLocationIcon ||
+        (oldWidget.locationIconPng == null &&
+            hasEnableLocationIconBytes(widget.locationIconPng));
     final iconChanged = oldWidget.locationIconPng != widget.locationIconPng;
 
     if (iconReady && _pendingLocationEnable) {
@@ -98,7 +111,10 @@ class _MapControlButtonsState extends State<MapControlButtons> {
 
     if (!iconChanged) return;
     if (_trackState != _TrackLocationState.gpsFixed) return;
-    if (widget.waitForLocationIcon && widget.locationIconPng == null) return;
+    if (_waitsForLocationIcon &&
+        !hasEnableLocationIconBytes(widget.locationIconPng)) {
+      return;
+    }
 
     unawaited(_enableLocationServices(controller, trackLocation: false));
   }
@@ -197,13 +213,6 @@ class _MapControlButtonsState extends State<MapControlButtons> {
       return;
     }
 
-    if (widget.waitForLocationIcon && widget.locationIconPng == null) {
-      _pendingLocationEnable = true;
-      _pendingTrackLocation = trackLocation;
-      setState(() => _trackState = _TrackLocationState.loading);
-      return;
-    }
-
     if (controller.style == null) {
       _pendingLocationEnable = true;
       _pendingTrackLocation = trackLocation;
@@ -220,15 +229,28 @@ class _MapControlButtonsState extends State<MapControlButtons> {
     }
 
     try {
+      if (_waitsForLocationIcon && mounted) {
+        setState(() => _trackState = _TrackLocationState.loading);
+      }
+
       final initial = widget.resolveInitialLocation != null
           ? await widget.resolveInitialLocation!()
           : null;
 
-      await controller.enableLocation(
+      final enabled = await controller.enableLocation(
         locationIconPng: widget.locationIconPng,
+        resolveLocationIconPng: widget.resolveLocationIconPng,
+        requireLocationIcon: _waitsForLocationIcon,
         initialLocation: initial,
       );
       if (!mounted) return;
+      if (!enabled) {
+        _pendingLocationEnable = true;
+        _pendingTrackLocation = trackLocation;
+        setState(() => _trackState = _TrackLocationState.loading);
+        return;
+      }
+
       setState(() => _trackState = _TrackLocationState.gpsFixed);
 
       if (trackLocation) await controller.trackLocation();

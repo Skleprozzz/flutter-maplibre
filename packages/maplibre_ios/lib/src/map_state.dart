@@ -160,7 +160,7 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   }
 
   @override
-  Future<void> enableLocation({
+  Future<bool> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),
     bool pulseFade = true,
@@ -169,17 +169,32 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
     Uint8List? locationIconPng,
+    Future<Uint8List?> Function()? resolveLocationIconPng,
+    bool requireLocationIcon = false,
     String locationIconStyleId = MapController.defaultLocationIconStyleId,
     Geographic? initialLocation,
   }) async {
-    // iOS: system puck only; parameters ignored.
+    // iOS: system puck only; icon parameters ignored except defer semantics.
+    final bytes = await resolveEnableLocationIconBytes(
+      locationIconPng: locationIconPng,
+      resolveLocationIconPng: resolveLocationIconPng,
+    );
+    if (shouldDeferEnableLocation(
+      requireLocationIcon: requireLocationIcon,
+      resolveLocationIconPng: resolveLocationIconPng,
+      resolvedBytes: bytes,
+    )) {
+      return false;
+    }
+
     final mapView = _mapView;
-    if (mapView == null) return;
+    if (mapView == null) return false;
 
     mapView.showsUserLocation = true;
     // TODO: apply bearingRenderMode
     mapView.showsUserHeadingIndicator =
         bearingRenderMode != BearingRenderMode.none;
+    return true;
   }
 
   @override
