@@ -6,6 +6,7 @@ export 'src/extensions.dart';
 export 'src/layer/layer.dart';
 export 'src/layer/layer_manager.dart';
 export 'src/lng_lat_bounds.dart';
+export 'src/location_icon_asset.dart';
 export 'src/map_camera.dart';
 export 'src/map_controller.dart';
 export 'src/map_events.dart';

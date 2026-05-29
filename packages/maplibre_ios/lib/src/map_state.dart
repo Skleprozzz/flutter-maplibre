@@ -17,6 +17,8 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   late final int _viewId;
   MLNMapView? _mapView;
   bool _pendingStyleLoaded = true;
+  bool _locationServicesEnabled = false;
+  bool _pendingEnableLocation = false;
 
   @override
   StyleControllerIos? style;
@@ -123,6 +125,8 @@ final class MapLibreMapStateIos extends MapLibreMapState {
       if (mapView.style case final style?) {
         _didFinishLoadingStyle(mapView, style);
       }
+    } else if (_locationServicesEnabled || _pendingEnableLocation) {
+      unawaited(_applyEnableLocation());
     }
   }
 
@@ -172,17 +176,25 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
   }) async {
+    _locationServicesEnabled = true;
+    if (_mapView == null) {
+      _pendingEnableLocation = true;
+      return;
+    }
+    await _applyEnableLocation(bearingRenderMode: bearingRenderMode);
+  }
+
+  Future<void> _applyEnableLocation({
+    BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
+  }) async {
+    _pendingEnableLocation = false;
     final mapView = _mapView;
     if (mapView == null) return;
 
     final iconAsset = options.locationIconAsset;
     if (iconAsset != null && iconAsset.isNotEmpty) {
-      try {
-        final data = await rootBundle.load(iconAsset);
-        if (data.lengthInBytes == 0) return;
-      } on Object {
-        return;
-      }
+      final bytes = await loadLocationIconAssetBytes(iconAsset);
+      if (bytes == null) return;
     }
 
     mapView.showsUserLocation = true;
@@ -489,6 +501,9 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     layerManager = LayerManager(styleCtrl, widget.layers);
     // setState is needed to refresh the flutter widgets used in MapLibreMap.children.
     setState(() {});
+    if (_locationServicesEnabled || _pendingEnableLocation) {
+      unawaited(_applyEnableLocation());
+    }
   }
 
   /// MLNMapViewDelegate method called when camera is about to start changing

@@ -26,6 +26,8 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   jni.Projection? _cachedJProjection;
   jni.LocationComponent? _cachedJLocationComponent;
   bool _mapViewStarted = false;
+  bool _locationServicesEnabled = false;
+  bool _pendingEnableLocation = false;
 
   @override
   StyleControllerAndroid? style;
@@ -496,8 +498,10 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     widget.onEvent?.call(MapEventStyleLoaded(styleCtrl));
     widget.onStyleLoaded?.call(styleCtrl);
     layerManager = LayerManager(styleCtrl, widget.layers);
-    // setState is needed to refresh the flutter widgets used in MapLibreMap.children.
     if (mounted) setState(() {});
+    if (_locationServicesEnabled || _pendingEnableLocation) {
+      unawaited(_applyEnableLocation());
+    }
   }
 
   @override
@@ -676,23 +680,47 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     bool pulse = true,
     BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
   }) async {
+    _locationServicesEnabled = true;
+    if (style == null) {
+      _pendingEnableLocation = true;
+      return;
+    }
+    await _applyEnableLocation(
+      fastestInterval: fastestInterval,
+      maxWaitTime: maxWaitTime,
+      pulseFade: pulseFade,
+      accuracyAnimation: accuracyAnimation,
+      compassAnimation: compassAnimation,
+      pulse: pulse,
+      bearingRenderMode: bearingRenderMode,
+    );
+  }
+
+  Future<void> _applyEnableLocation({
+    Duration fastestInterval = const Duration(milliseconds: 750),
+    Duration maxWaitTime = const Duration(seconds: 1),
+    bool pulseFade = true,
+    bool accuracyAnimation = true,
+    bool compassAnimation = true,
+    bool pulse = true,
+    BearingRenderMode bearingRenderMode = BearingRenderMode.gps,
+  }) async {
+    _pendingEnableLocation = false;
     final style = this.style;
     if (style == null) return;
 
     final iconAsset = options.locationIconAsset;
     Uint8List? bytes;
     if (iconAsset != null && iconAsset.isNotEmpty) {
-      try {
-        final data = await rootBundle.load(iconAsset);
-        bytes = data.buffer.asUint8List();
-      } on Object {
-        return;
-      }
-      if (bytes.isEmpty) return;
+      bytes = await loadLocationIconAssetBytes(iconAsset);
+      if (bytes == null) return;
       await style.addImage(MapController.defaultLocationIconStyleId, bytes);
     }
 
-    final initialLocation = options.initialLocation;
+    final seedLocation =
+        options.initialLocation ??
+        options.initCenter ??
+        (bytes != null ? getCamera().center : null);
 
     using((arena) {
       final bearing = switch (bearingRenderMode) {
@@ -740,11 +768,11 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
       _jLocationComponent.renderMode = bearing;
       _jLocationComponent.locationComponentEnabled = true;
 
-      if (initialLocation != null) {
+      if (seedLocation != null) {
         final provider = 'maplibre-seed'.toJString()..releasedBy(arena);
         final location = jni.Location.new$1(provider)..releasedBy(arena);
-        location.latitude = initialLocation.lat;
-        location.longitude = initialLocation.lon;
+        location.latitude = seedLocation.lat;
+        location.longitude = seedLocation.lon;
         location.time = DateTime.now().millisecondsSinceEpoch;
         _jLocationComponent.forceLocationUpdate(location);
       }

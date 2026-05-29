@@ -146,6 +146,15 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         api?.didFinishLoadingStyle(mapView: mapView, style: style)
+        if mapView.showsUserLocation, _locationIconImage != nil {
+            mapView.updateUserLocationAnnotationView()
+        }
+    }
+
+    func mapView(_ mapView: MLNMapView, didUpdate userLocation: MLNUserLocation?) {
+        if _locationIconAssetPath != nil, _locationIconImage != nil {
+            mapView.updateUserLocationAnnotationView()
+        }
     }
 
     func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
