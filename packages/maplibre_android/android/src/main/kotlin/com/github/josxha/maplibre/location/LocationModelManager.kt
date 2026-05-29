@@ -1,6 +1,7 @@
 package com.github.josxha.maplibre.location
 
 import android.graphics.Color
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.FrameLayout
@@ -22,7 +23,7 @@ object LocationModelManager {
     @JvmStatic
     fun attach(
         viewId: Int,
-        modelBytes: ByteArray,
+        files: Map<String, ByteArray>,
         fileName: String,
         scale: Float,
     ) {
@@ -30,7 +31,7 @@ object LocationModelManager {
             ?: return
         detach(viewId)
         controllers[viewId] =
-            LocationModelController(parent, modelBytes, fileName, scale)
+            LocationModelController(parent, files, fileName, scale)
     }
 
     @JvmStatic
@@ -53,7 +54,7 @@ object LocationModelManager {
 @Keep
 private class LocationModelController(
     private val parent: FrameLayout,
-    modelBytes: ByteArray,
+    files: Map<String, ByteArray>,
     fileName: String,
     private val scale: Float,
 ) {
@@ -85,18 +86,26 @@ private class LocationModelController(
         sceneView.isClickable = false
         sceneView.isFocusable = false
 
-        val modelFile = writeModelCache(parent.context.cacheDir, modelBytes, fileName)
+        val modelFile =
+            writeModelCache(parent.context.cacheDir, files, fileName)
+                ?: run {
+                    container.visibility = android.view.View.GONE
+                    return
+                }
+
         scope.launch {
-            val instance =
-                sceneView.modelLoader.loadModelInstance(fileLocation = modelFile.absolutePath)
-            instance?.let {
+            try {
+                val instance = sceneView.modelLoader.createModelInstance(modelFile)
                 val node =
                     ModelNode(
-                        modelInstance = it,
+                        modelInstance = instance,
                         scaleToUnits = scale.coerceAtLeast(0.01f),
                     )
                 modelNode = node
                 sceneView.addChildNode(node)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load location model: ${modelFile.name}", e)
+                container.visibility = android.view.View.GONE
             }
         }
     }
@@ -133,18 +142,21 @@ private class LocationModelController(
             ).toInt()
 
     companion object {
+        private const val TAG = "LocationModelManager"
         private const val MODEL_SIZE_DP = 96f
 
         private fun writeModelCache(
             cacheDir: File,
-            bytes: ByteArray,
+            files: Map<String, ByteArray>,
             fileName: String,
-        ): File {
+        ): File? {
+            if (files.isEmpty()) return null
             val dir = File(cacheDir, "maplibre_location_models")
             dir.mkdirs()
-            val file = File(dir, fileName)
-            file.writeBytes(bytes)
-            return file
+            for ((name, bytes) in files) {
+                File(dir, name).writeBytes(bytes)
+            }
+            return File(dir, fileName).takeIf { it.exists() }
         }
     }
 }

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 
 /// MethodChannel bridge for native glTF location model rendering on Android.
@@ -6,14 +8,14 @@ abstract final class LocationModelBridge {
 
   static Future<void> attach({
     required int viewId,
-    required List<int> modelBytes,
     required String fileName,
+    required Map<String, Uint8List> files,
     required double scale,
   }) async {
     await _channel.invokeMethod<void>('attach', {
       'viewId': viewId,
-      'bytes': modelBytes,
       'fileName': fileName,
+      'files': files,
       'scale': scale,
     });
   }

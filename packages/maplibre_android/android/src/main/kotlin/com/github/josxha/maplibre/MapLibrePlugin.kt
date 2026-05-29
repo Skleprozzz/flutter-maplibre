@@ -57,10 +57,10 @@ class MapLibrePlugin :
             when (call.method) {
                 "attach" -> {
                     val viewId = call.argument<Int>("viewId")!!
-                    val bytes = call.argument<ByteArray>("bytes")!!
+                    val files = parseLocationModelFiles(call.argument("files"))
                     val fileName = call.argument<String>("fileName")!!
                     val scale = call.argument<Double>("scale")!!.toFloat()
-                    LocationModelManager.attach(viewId, bytes, fileName, scale)
+                    LocationModelManager.attach(viewId, files, fileName, scale)
                     result.success(null)
                 }
                 "update" -> {
@@ -164,5 +164,22 @@ private class RegisteredPlatformView(
 
     override fun onInputConnectionUnlocked() {
         delegate.onInputConnectionUnlocked()
+    }
+}
+
+private fun parseLocationModelFiles(raw: Any?): Map<String, ByteArray> {
+    val map = raw as? Map<*, *> ?: return emptyMap()
+    return buildMap {
+        for ((key, value) in map) {
+            val name = key as? String ?: continue
+            val bytes =
+                when (value) {
+                    is ByteArray -> value
+                    is List<*> ->
+                        value.map { (it as Number).toByte() }.toByteArray()
+                    else -> continue
+                }
+            put(name, bytes)
+        }
     }
 }

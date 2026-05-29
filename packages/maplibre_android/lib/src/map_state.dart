@@ -31,8 +31,8 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   bool _pendingEnableLocation = false;
   Uint8List? _locationIconBytes;
   Future<Uint8List?>? _locationIconBytesFuture;
-  Uint8List? _locationModelBytes;
-  Future<Uint8List?>? _locationModelBytesFuture;
+  LocationModelAssetBundle? _locationModelBundle;
+  Future<LocationModelAssetBundle?>? _locationModelBundleFuture;
   bool _locationModelAttached = false;
 
   @override
@@ -273,7 +273,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     WidgetsBinding.instance.addObserver(this);
     super.initState();
     unawaited(_ensureLocationIconBytes());
-    unawaited(_ensureLocationModelBytes());
+    unawaited(_ensureLocationModelBundle());
   }
 
   @override
@@ -544,13 +544,12 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
           : null);
 
   Future<void> _setupCustomLocationModel() async {
-    final bytes = await _ensureLocationModelBytes();
-    if (bytes == null) return;
-    final asset = options.locationModelAsset!;
+    final bundle = await _ensureLocationModelBundle();
+    if (bundle == null) return;
     await LocationModelBridge.attach(
       viewId: _viewId,
-      modelBytes: bytes,
-      fileName: locationModelAssetFileName(asset),
+      fileName: bundle.fileName,
+      files: bundle.files,
       scale: options.locationModelScale,
     );
     _locationModelAttached = true;
@@ -606,16 +605,16 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     return (geographic: seed, bearing: getCamera().bearing);
   }
 
-  Future<Uint8List?> _ensureLocationModelBytes() async {
+  Future<LocationModelAssetBundle?> _ensureLocationModelBundle() async {
     final asset = options.locationModelAsset;
     if (asset == null || asset.isEmpty || !isLocationModelAsset(asset)) {
       return null;
     }
-    if (_locationModelBytes != null) return _locationModelBytes;
-    return _locationModelBytesFuture ??= loadLocationModelAssetBytes(asset)
-        .then((bytes) {
-          _locationModelBytes = bytes;
-          return bytes;
+    if (_locationModelBundle != null) return _locationModelBundle;
+    return _locationModelBundleFuture ??= loadLocationModelAssetBundle(asset)
+        .then((bundle) {
+          _locationModelBundle = bundle;
+          return bundle;
         });
   }
 
