@@ -134,7 +134,10 @@ private class RegisteredPlatformView(
     private val delegate: PlatformView,
 ) : PlatformView {
     override fun getView(): View {
-        val view = delegate.getView()
+        val view =
+            checkNotNull(delegate.getView()) {
+                "MapLibre platform view is not available"
+            }
         if (view is FrameLayout) {
             MapLibreRegistry.registerPlatformView(viewId, view)
         }
