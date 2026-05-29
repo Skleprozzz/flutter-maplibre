@@ -2,14 +2,25 @@ import Flutter
 import MapLibre
 
 private final class MapLibreCustomUserLocationAnnotationView: MLNUserLocationAnnotationView {
+    private let iconView: UIImageView
+
     init(image: UIImage, reuseIdentifier: String) {
+        iconView = UIImageView(image: image)
         super.init(reuseIdentifier: reuseIdentifier)
-        self.image = image
-        frame = CGRect(origin: .zero, size: image.size)
+        iconView.contentMode = .scaleAspectFit
+        iconView.frame = CGRect(origin: .zero, size: image.size)
+        addSubview(iconView)
+        frame = iconView.frame
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func updateImage(_ image: UIImage) {
+        iconView.image = image
+        iconView.frame = CGRect(origin: .zero, size: image.size)
+        frame = iconView.frame
     }
 }
 
@@ -200,15 +211,10 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
     func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
         if let seed = _seedAnnotation, annotation === seed {
             guard let image = _locationIconImage else { return nil }
-            var annotationView = mapView.dequeueReusableAnnotationView(
+            let annotationView = mapView.dequeueReusableAnnotationView(
                 withIdentifier: Self.seedLocationReuseId
-            )
-            if annotationView == nil {
-                annotationView = MLNAnnotationView(
-                    reuseIdentifier: Self.seedLocationReuseId
-                )
-            }
-            annotationView?.image = image
+            ) ?? MLNAnnotationView(reuseIdentifier: Self.seedLocationReuseId)
+            Self.configureAnnotationView(annotationView, image: image)
             return annotationView
         }
 
@@ -218,21 +224,34 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
             guard let image = _locationIconImage else {
                 return nil
             }
-            var annotationView = mapView.dequeueReusableAnnotationView(
+            let annotationView = mapView.dequeueReusableAnnotationView(
                 withIdentifier: Self.userLocationReuseId
             ) as? MapLibreCustomUserLocationAnnotationView
-            if annotationView == nil {
-                annotationView = MapLibreCustomUserLocationAnnotationView(
+                ?? MapLibreCustomUserLocationAnnotationView(
                     image: image,
                     reuseIdentifier: Self.userLocationReuseId
                 )
-            } else {
-                annotationView?.image = image
-            }
+            annotationView.updateImage(image)
             return annotationView
         }
 
         return nil
+    }
+
+    private static func configureAnnotationView(_ view: MLNAnnotationView, image: UIImage) {
+        view.frame = CGRect(origin: .zero, size: image.size)
+        let iconView: UIImageView
+        if let existing = view.viewWithTag(1) as? UIImageView {
+            iconView = existing
+        } else {
+            iconView = UIImageView()
+            iconView.tag = 1
+            iconView.contentMode = .scaleAspectFit
+            view.addSubview(iconView)
+        }
+        iconView.image = image
+        iconView.frame = view.bounds
+        iconView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     }
 
     private func showSeedLocationMarkerIfNeeded() {
