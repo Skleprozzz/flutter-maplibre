@@ -28,6 +28,8 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   bool _mapViewStarted = false;
   bool _locationServicesEnabled = false;
   bool _pendingEnableLocation = false;
+  Uint8List? _locationIconBytes;
+  Future<Uint8List?>? _locationIconBytesFuture;
 
   @override
   StyleControllerAndroid? style;
@@ -265,6 +267,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   void initState() {
     WidgetsBinding.instance.addObserver(this);
     super.initState();
+    unawaited(_ensureLocationIconBytes());
   }
 
   @override
@@ -499,9 +502,42 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     widget.onStyleLoaded?.call(styleCtrl);
     layerManager = LayerManager(styleCtrl, widget.layers);
     if (mounted) setState(() {});
-    if (_locationServicesEnabled || _pendingEnableLocation) {
-      unawaited(_applyEnableLocation());
+    unawaited(() async {
+      await _registerLocationIcon();
+      if (_locationServicesEnabled || _pendingEnableLocation) {
+        await _applyEnableLocation();
+      }
+    }());
+  }
+
+  Future<Uint8List?> _ensureLocationIconBytes() {
+    final asset = options.locationIconAsset;
+    if (asset == null || asset.isEmpty) {
+      return Future.value(null);
     }
+    if (_locationIconBytes != null) {
+      return Future.value(_locationIconBytes);
+    }
+    return _locationIconBytesFuture ??= loadLocationIconAssetBytes(asset).then((
+      bytes,
+    ) {
+      _locationIconBytes = bytes;
+      return bytes;
+    });
+  }
+
+  Future<bool> _registerLocationIcon() async {
+    final asset = options.locationIconAsset;
+    if (asset == null || asset.isEmpty) return true;
+
+    final style = this.style;
+    if (style == null) return false;
+
+    final bytes = await _ensureLocationIconBytes();
+    if (bytes == null) return false;
+
+    await style.addImage(MapController.defaultLocationIconStyleId, bytes);
+    return true;
   }
 
   @override
@@ -712,9 +748,8 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     final iconAsset = options.locationIconAsset;
     Uint8List? bytes;
     if (iconAsset != null && iconAsset.isNotEmpty) {
-      bytes = await loadLocationIconAssetBytes(iconAsset);
-      if (bytes == null) return;
-      await style.addImage(MapController.defaultLocationIconStyleId, bytes);
+      if (!await _registerLocationIcon()) return;
+      bytes = _locationIconBytes;
     }
 
     final seedLocation =

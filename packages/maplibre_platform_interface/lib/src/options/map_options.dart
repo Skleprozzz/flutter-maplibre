@@ -120,8 +120,9 @@ class MapOptions {
 
   /// Flutter asset path to a PNG used as the location puck (Android and iOS).
   ///
-  /// When set, the map loads this asset when [MapController.enableLocation] is
-  /// called. The default puck is not shown if the asset cannot be loaded.
+  /// The asset is loaded when the map is created and registered with the style
+  /// as soon as it is ready. When set, the default puck is not shown if the
+  /// asset cannot be loaded.
   final String? locationIconAsset;
 
   /// Android only: seeds the location component when no fused fix exists yet

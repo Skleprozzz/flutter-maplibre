@@ -19,6 +19,30 @@ final class MapLibreMapStateIos extends MapLibreMapState {
   bool _pendingStyleLoaded = true;
   bool _locationServicesEnabled = false;
   bool _pendingEnableLocation = false;
+  Uint8List? _locationIconBytes;
+  Future<Uint8List?>? _locationIconBytesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_ensureLocationIconBytes());
+  }
+
+  Future<Uint8List?> _ensureLocationIconBytes() {
+    final asset = options.locationIconAsset;
+    if (asset == null || asset.isEmpty) {
+      return Future.value(null);
+    }
+    if (_locationIconBytes != null) {
+      return Future.value(_locationIconBytes);
+    }
+    return _locationIconBytesFuture ??= loadLocationIconAssetBytes(asset).then((
+      bytes,
+    ) {
+      _locationIconBytes = bytes;
+      return bytes;
+    });
+  }
 
   @override
   StyleControllerIos? style;
@@ -193,7 +217,7 @@ final class MapLibreMapStateIos extends MapLibreMapState {
 
     final iconAsset = options.locationIconAsset;
     if (iconAsset != null && iconAsset.isNotEmpty) {
-      final bytes = await loadLocationIconAssetBytes(iconAsset);
+      final bytes = await _ensureLocationIconBytes();
       if (bytes == null) return;
     }
 
