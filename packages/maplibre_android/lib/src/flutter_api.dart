@@ -1,6 +1,5 @@
 import 'package:ffi/ffi.dart';
 import 'package:maplibre_android/src/functions.dart';
-import 'package:maplibre_android/src/location_model_bridge.dart';
 import 'package:maplibre_android/src/jni.g.dart' as jni;
 import 'package:maplibre_android/src/registry.dart';
 
@@ -19,7 +18,6 @@ final class FlutterApi with jni.$FlutterApi {
 
     final view = jni.FrameLayout(jContext);
     Registry.platformViews[viewId] = view;
-    LocationModelBridge.registerPlatformView(viewId, view);
     final platformView = jni.PlatformView.implement(
       jni.$PlatformView(
         getView: () => view,

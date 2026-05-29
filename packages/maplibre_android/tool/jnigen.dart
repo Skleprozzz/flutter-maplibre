@@ -32,7 +32,6 @@ void main(List<String> args) {
         'android.widget.FrameLayout',
         'android.view.ViewGroup',
         'com.github.josxha.maplibre.FlutterApi',
-        'com.github.josxha.maplibre.location.LocationModelManager',
         // 'com.github.josxha.maplibre.Helpers',
         'com.github.josxha.maplibre.MapLibreRegistry',
         'java.net.URI',

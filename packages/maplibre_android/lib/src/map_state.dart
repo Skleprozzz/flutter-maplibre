@@ -320,8 +320,8 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     }
     if (_hasCustomLocationModel &&
         Registry.platformViews.containsKey(_viewId)) {
-      LocationModelBridge.detach(_viewId);
-      LocationModelBridge.unregisterPlatformView(_viewId);
+      unawaited(LocationModelBridge.detach(_viewId));
+      unawaited(LocationModelBridge.unregisterPlatformView(_viewId));
     }
     super.dispose();
   }
@@ -547,7 +547,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     final bytes = await _ensureLocationModelBytes();
     if (bytes == null) return;
     final asset = options.locationModelAsset!;
-    LocationModelBridge.attach(
+    await LocationModelBridge.attach(
       viewId: _viewId,
       modelBytes: bytes,
       fileName: locationModelAssetFileName(asset),
@@ -561,23 +561,27 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     if (!_locationModelAttached) return;
     final location = _currentLocationForOverlay();
     if (location == null) {
-      LocationModelBridge.update(
-        viewId: _viewId,
-        screenX: 0,
-        screenY: 0,
-        bearing: 0,
-        visible: false,
+      unawaited(
+        LocationModelBridge.update(
+          viewId: _viewId,
+          screenX: 0,
+          screenY: 0,
+          bearing: 0,
+          visible: false,
+        ),
       );
       return;
     }
     final screen = toScreenLocation(location.geographic);
     final pixelRatio = View.of(context).devicePixelRatio;
-    LocationModelBridge.update(
-      viewId: _viewId,
-      screenX: screen.dx * pixelRatio,
-      screenY: screen.dy * pixelRatio,
-      bearing: location.bearing,
-      visible: true,
+    unawaited(
+      LocationModelBridge.update(
+        viewId: _viewId,
+        screenX: screen.dx * pixelRatio,
+        screenY: screen.dy * pixelRatio,
+        bearing: location.bearing,
+        visible: true,
+      ),
     );
   }
 
