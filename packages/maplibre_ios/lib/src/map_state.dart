@@ -54,7 +54,12 @@ final class MapLibreMapStateIos extends MapLibreMapState {
       onPlatformViewCreated: _onPlatformViewCreated,
       creationParams: {
         'initStyle': options.initStyle,
-        'locationIconAsset': ?options.locationIconAsset,
+        if (!_hasCustomLocationModel)
+          'locationIconAsset': ?options.locationIconAsset,
+        if (_hasCustomLocationModel) ...{
+          'locationModelAsset': options.locationModelAsset!,
+          'locationModelScale': options.locationModelScale,
+        },
         if (seed case final seed?) ...{
           'locationSeedLat': seed.lat,
           'locationSeedLon': seed.lon,
@@ -66,6 +71,11 @@ final class MapLibreMapStateIos extends MapLibreMapState {
 
   Geographic? get _locationSeed =>
       options.initialLocation ?? options.initCenter;
+
+  bool get _hasCustomLocationModel {
+    final asset = options.locationModelAsset;
+    return asset != null && asset.isNotEmpty && isLocationModelAsset(asset);
+  }
 
   /// This method gets called when the platform view is created. It is not
   /// guaranteed that the map is ready.
@@ -220,7 +230,7 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     if (mapView == null) return;
 
     final iconAsset = options.locationIconAsset;
-    if (iconAsset != null && iconAsset.isNotEmpty) {
+    if (!_hasCustomLocationModel && iconAsset != null && iconAsset.isNotEmpty) {
       final bytes = await _ensureLocationIconBytes();
       if (bytes == null) return;
     }
@@ -230,7 +240,7 @@ final class MapLibreMapStateIos extends MapLibreMapState {
     mapView.showsUserHeadingIndicator =
         bearingRenderMode != BearingRenderMode.none;
 
-    if (iconAsset != null && iconAsset.isNotEmpty) {
+    if (!_hasCustomLocationModel && iconAsset != null && iconAsset.isNotEmpty) {
       mapView.updateUserLocationAnnotationView();
     }
   }

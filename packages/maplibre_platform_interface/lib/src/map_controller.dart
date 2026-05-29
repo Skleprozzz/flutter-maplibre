@@ -143,6 +143,9 @@ abstract interface class MapController {
   ///
   /// When [MapOptions.locationIconAsset] is set on the parent [MapLibreMap],
   /// the custom puck is loaded from that asset (Android and iOS).
+  ///
+  /// When [MapOptions.locationModelAsset] is set, a native glTF/GLB model is
+  /// rendered instead of a 2D puck.
   Future<void> enableLocation({
     Duration fastestInterval = const Duration(milliseconds: 750),
     Duration maxWaitTime = const Duration(seconds: 1),

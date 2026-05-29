@@ -10,6 +10,7 @@ import 'package:jni/jni.dart';
 import 'package:maplibre_android/src/extensions.dart';
 import 'package:maplibre_android/src/flutter_api.dart';
 import 'package:maplibre_android/src/functions.dart';
+import 'package:maplibre_android/src/location_model_bridge.dart';
 import 'package:maplibre_android/src/jni.g.dart' as jni;
 import 'package:maplibre_android/src/registry.dart';
 import 'package:maplibre_platform_interface/maplibre_platform_interface.dart';
@@ -30,6 +31,9 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   bool _pendingEnableLocation = false;
   Uint8List? _locationIconBytes;
   Future<Uint8List?>? _locationIconBytesFuture;
+  Uint8List? _locationModelBytes;
+  Future<Uint8List?>? _locationModelBytesFuture;
+  bool _locationModelAttached = false;
 
   @override
   StyleControllerAndroid? style;
@@ -84,6 +88,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
             if (mounted) {
               setState(() => camera = mapCamera);
               widget.onEvent?.call(MapEventMoveCamera(camera: mapCamera));
+              _updateLocationModelOverlay();
             }
           }),
         ),
@@ -268,6 +273,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     WidgetsBinding.instance.addObserver(this);
     super.initState();
     unawaited(_ensureLocationIconBytes());
+    unawaited(_ensureLocationModelBytes());
   }
 
   @override
@@ -311,6 +317,11 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
       }
       mapView.onDestroy();
       mapView.release();
+    }
+    if (_hasCustomLocationModel &&
+        Registry.platformViews.containsKey(_viewId)) {
+      LocationModelBridge.detach(_viewId);
+      LocationModelBridge.unregisterPlatformView(_viewId);
     }
     super.dispose();
   }
@@ -503,7 +514,9 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     layerManager = LayerManager(styleCtrl, widget.layers);
     if (mounted) setState(() {});
     unawaited(() async {
-      if (_hasCustomLocationIcon) {
+      if (_hasCustomLocationModel) {
+        await _setupCustomLocationModel();
+      } else if (_hasCustomLocationIcon) {
         await _setupCustomLocationPuck();
       }
       if (_locationServicesEnabled || _pendingEnableLocation) {
@@ -512,7 +525,13 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
     }());
   }
 
+  bool get _hasCustomLocationModel {
+    final asset = options.locationModelAsset;
+    return asset != null && asset.isNotEmpty && isLocationModelAsset(asset);
+  }
+
   bool get _hasCustomLocationIcon {
+    if (_hasCustomLocationModel) return false;
     final asset = options.locationIconAsset;
     return asset != null && asset.isNotEmpty;
   }
@@ -520,7 +539,81 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
   Geographic? get _locationSeed =>
       options.initialLocation ??
       options.initCenter ??
-      (_hasCustomLocationIcon ? getCamera().center : null);
+      ((_hasCustomLocationIcon || _hasCustomLocationModel)
+          ? getCamera().center
+          : null);
+
+  Future<void> _setupCustomLocationModel() async {
+    final bytes = await _ensureLocationModelBytes();
+    if (bytes == null) return;
+    final asset = options.locationModelAsset!;
+    LocationModelBridge.attach(
+      viewId: _viewId,
+      modelBytes: bytes,
+      fileName: locationModelAssetFileName(asset),
+      scale: options.locationModelScale,
+    );
+    _locationModelAttached = true;
+    _updateLocationModelOverlay();
+  }
+
+  void _updateLocationModelOverlay() {
+    if (!_locationModelAttached) return;
+    final location = _currentLocationForOverlay();
+    if (location == null) {
+      LocationModelBridge.update(
+        viewId: _viewId,
+        screenX: 0,
+        screenY: 0,
+        bearing: 0,
+        visible: false,
+      );
+      return;
+    }
+    final screen = toScreenLocation(location.geographic);
+    final pixelRatio = View.of(context).devicePixelRatio;
+    LocationModelBridge.update(
+      viewId: _viewId,
+      screenX: screen.dx * pixelRatio,
+      screenY: screen.dy * pixelRatio,
+      bearing: location.bearing,
+      visible: true,
+    );
+  }
+
+  ({Geographic geographic, double bearing})? _currentLocationForOverlay() {
+    if (_locationServicesEnabled || _pendingEnableLocation) {
+      final lastKnown = using((arena) {
+        final location = _jLocationComponent.lastKnownLocation
+          ?..releasedBy(arena);
+        if (location == null) return null;
+        return (
+          geographic: Geographic(
+            lon: location.longitude,
+            lat: location.latitude,
+          ),
+          bearing: location.bearing,
+        );
+      });
+      if (lastKnown != null) return lastKnown;
+    }
+    final seed = _locationSeed;
+    if (seed == null) return null;
+    return (geographic: seed, bearing: getCamera().bearing);
+  }
+
+  Future<Uint8List?> _ensureLocationModelBytes() async {
+    final asset = options.locationModelAsset;
+    if (asset == null || asset.isEmpty || !isLocationModelAsset(asset)) {
+      return null;
+    }
+    if (_locationModelBytes != null) return _locationModelBytes;
+    return _locationModelBytesFuture ??= loadLocationModelAssetBytes(asset)
+        .then((bytes) {
+          _locationModelBytes = bytes;
+          return bytes;
+        });
+  }
 
   /// Activates the location component with the custom icon and a seeded
   /// position, without starting the GPS engine yet.
@@ -765,7 +858,7 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
 
     final iconAsset = options.locationIconAsset;
     Uint8List? bytes;
-    if (iconAsset != null && iconAsset.isNotEmpty) {
+    if (_hasCustomLocationIcon && iconAsset != null && iconAsset.isNotEmpty) {
       if (!await _registerLocationIcon()) return;
       bytes = _locationIconBytes;
     }
@@ -799,6 +892,11 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
             .backgroundName(iconId)
             .foregroundStaleName(iconId)
             .backgroundStaleName(iconId);
+      } else if (_hasCustomLocationModel) {
+        locOptionsBuilder = locOptionsBuilder
+            .pulseEnabled(false)!
+            .accuracyAlpha(0)
+            .enableStaleState(false)!;
       } else {
         locOptionsBuilder = locOptionsBuilder.pulseEnabled(pulse)!;
       }
@@ -836,6 +934,10 @@ final class MapLibreMapStateAndroid extends MapLibreMapState
         _jLocationComponent.forceLocationUpdate(location);
       }
     });
+
+    if (_hasCustomLocationModel) {
+      _updateLocationModelOverlay();
+    }
 
     if (seedLocation != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

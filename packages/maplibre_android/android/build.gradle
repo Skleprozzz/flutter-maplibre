@@ -67,6 +67,8 @@ android {
 
     dependencies {
         api 'org.maplibre.gl:android-sdk-opengl:13.0.2'
+        implementation 'io.github.sceneview:sceneview:2.2.1'
+        implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
         testImplementation "org.jetbrains.kotlin:kotlin-test"
         testImplementation "org.mockito:mockito-core:5.21.+"
     }

@@ -34,6 +34,9 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
     private var _registrar: FlutterPluginRegistrar
     private var _locationIconAssetPath: String?
     private var _locationIconImage: UIImage?
+    private var _locationModelAssetPath: String?
+    private var _locationModelScale: Float = 1
+    private var _locationModelController: LocationModelController?
     private var _locationSeedCoordinate: CLLocationCoordinate2D?
     private var _seedAnnotation: MLNPointAnnotation?
 
@@ -43,17 +46,25 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
         viewId: Int64,
         initStyle: String,
         locationIconAsset: String? = nil,
+        locationModelAsset: String? = nil,
+        locationModelScale: Double = 1,
         locationSeedLat: Double? = nil,
         locationSeedLon: Double? = nil
     ) {
         _registrar = registrar
         _viewId = viewId
-        _locationIconAssetPath = locationIconAsset
-        if let asset = locationIconAsset, !asset.isEmpty {
-            _locationIconImage = Self.loadFlutterAssetImage(
-                asset,
-                registrar: registrar
-            )
+        _locationModelAssetPath = locationModelAsset
+        _locationModelScale = Float(locationModelScale)
+        if locationModelAsset == nil || locationModelAsset?.isEmpty == true {
+            _locationIconAssetPath = locationIconAsset
+            if let asset = locationIconAsset, !asset.isEmpty {
+                _locationIconImage = Self.loadFlutterAssetImage(
+                    asset,
+                    registrar: registrar
+                )
+            }
+        } else if let asset = locationModelAsset, !asset.isEmpty {
+            _locationModelAssetPath = asset
         }
         if let lat = locationSeedLat, let lon = locationSeedLon {
             _locationSeedCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
@@ -136,6 +147,16 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
 
         longPress.delegate = self
         _mapView.addGestureRecognizer(longPress)
+
+        if let asset = _locationModelAssetPath,
+           let url = Self.loadFlutterAssetURL(asset, registrar: _registrar)
+        {
+            _locationModelController = LocationModelController(
+                parent: _view,
+                modelURL: url,
+                scale: _locationModelScale
+            )
+        }
     }
 
     var api: FlutterApi? {
@@ -177,13 +198,21 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         api?.didFinishLoadingStyle(mapView: mapView, style: style)
-        showSeedLocationMarkerIfNeeded()
-        if mapView.showsUserLocation, _locationIconImage != nil {
-            mapView.updateUserLocationAnnotationView()
+        if _locationModelController != nil {
+            refreshLocationModel()
+        } else {
+            showSeedLocationMarkerIfNeeded()
+            if mapView.showsUserLocation, _locationIconImage != nil {
+                mapView.updateUserLocationAnnotationView()
+            }
         }
     }
 
     func mapView(_ mapView: MLNMapView, didUpdate userLocation: MLNUserLocation?) {
+        if _locationModelController != nil {
+            refreshLocationModel()
+            return
+        }
         if userLocation?.location != nil {
             removeSeedLocationMarker()
         }
@@ -202,6 +231,9 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
 
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
         api?.regionDidChangeWithReason(mapView: mapView, reason: reason.rawValue, animated: animated)
+        if _locationModelController != nil {
+            refreshLocationModel()
+        }
     }
 
     func mapViewDidBecomeIdle(_ mapView: MLNMapView) {
@@ -219,6 +251,18 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
         }
 
         guard annotation is MLNUserLocation else { return nil }
+
+        if _locationModelController != nil {
+            var hiddenView = mapView.dequeueReusableAnnotationView(
+                withIdentifier: "MapLibreHiddenUserLocation"
+            )
+            if hiddenView == nil {
+                hiddenView = MLNAnnotationView(reuseIdentifier: "MapLibreHiddenUserLocation")
+            }
+            hiddenView?.isHidden = true
+            hiddenView?.frame = .zero
+            return hiddenView
+        }
 
         if _locationIconAssetPath != nil {
             guard let image = _locationIconImage else {
@@ -274,6 +318,32 @@ class MapLibreView: NSObject, FlutterPlatformView, UIGestureRecognizerDelegate, 
         guard let seed = _seedAnnotation else { return }
         _mapView.removeAnnotation(seed)
         _seedAnnotation = nil
+    }
+
+    private func refreshLocationModel() {
+        guard let controller = _locationModelController else { return }
+        let coordinate = _mapView.userLocation?.location?.coordinate
+            ?? _locationSeedCoordinate
+        guard let coordinate else {
+            controller.update(screenX: 0, screenY: 0, bearing: 0, visible: false)
+            return
+        }
+        let point = _mapView.convert(coordinate, toPointTo: _mapView)
+        let bearing = _mapView.userLocation?.location?.course ?? _mapView.direction
+        controller.update(
+            screenX: point.x,
+            screenY: point.y,
+            bearing: bearing >= 0 ? bearing : _mapView.direction,
+            visible: true
+        )
+    }
+
+    private static func loadFlutterAssetURL(
+        _ assetPath: String,
+        registrar: FlutterPluginRegistrar
+    ) -> URL? {
+        let key = registrar.lookupKey(forAsset: assetPath)
+        return Bundle.main.url(forResource: key, withExtension: nil)
     }
 
     private static func loadFlutterAssetImage(

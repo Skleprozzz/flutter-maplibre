@@ -31,6 +31,8 @@ class MapOptions {
     this.androidForegroundLoadColor = Colors.transparent,
     this.webviewDebugMode = false,
     this.locationIconAsset,
+    this.locationModelAsset,
+    this.locationModelScale = 1,
     this.initialLocation,
   }) : initPitch = pitch ?? initPitch;
 
@@ -123,7 +125,19 @@ class MapOptions {
   /// The asset is loaded when the map is created and registered with the style
   /// as soon as it is ready. When set, the default puck is not shown if the
   /// asset cannot be loaded.
+  ///
+  /// Ignored when [locationModelAsset] is set.
   final String? locationIconAsset;
+
+  /// Flutter asset path to a glTF (`.gltf`) or GLB (`.glb`) model used as the
+  /// location puck (Android and iOS).
+  ///
+  /// When set, a native 3D renderer displays the model at the user location
+  /// instead of the default puck or [locationIconAsset].
+  final String? locationModelAsset;
+
+  /// Uniform scale applied to [locationModelAsset]. Defaults to `1`.
+  final double locationModelScale;
 
   /// Android only: seeds the location component when no fused fix exists yet
   /// (emulator / cold start).

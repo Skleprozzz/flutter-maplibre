@@ -18,6 +18,7 @@ Helper package for maplibre that provides iOS FFI bindings
 
   # Needs to be the same version as in maplibre_ios/Package.swift
   s.dependency 'MapLibre', '~> 6.25'
+  s.dependency 'GLTFSceneKit', '~> 0.3'
 
   s.platform = :ios, '12.0'
 
