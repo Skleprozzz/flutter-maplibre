@@ -86,26 +86,24 @@ private class LocationModelController(
         sceneView.isClickable = false
         sceneView.isFocusable = false
 
-        val modelFile =
-            writeModelCache(parent.context.cacheDir, files, fileName)
-                ?: run {
+        val modelFile = writeModelCache(parent.context.cacheDir, files, fileName)
+        if (modelFile == null) {
+            container.visibility = android.view.View.GONE
+        } else {
+            scope.launch {
+                try {
+                    val instance = sceneView.modelLoader.createModelInstance(modelFile)
+                    val node =
+                        ModelNode(
+                            modelInstance = instance,
+                            scaleToUnits = scale.coerceAtLeast(0.01f),
+                        )
+                    modelNode = node
+                    sceneView.addChildNode(node)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to load location model: ${modelFile.name}", e)
                     container.visibility = android.view.View.GONE
-                    return
                 }
-
-        scope.launch {
-            try {
-                val instance = sceneView.modelLoader.createModelInstance(modelFile)
-                val node =
-                    ModelNode(
-                        modelInstance = instance,
-                        scaleToUnits = scale.coerceAtLeast(0.01f),
-                    )
-                modelNode = node
-                sceneView.addChildNode(node)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load location model: ${modelFile.name}", e)
-                container.visibility = android.view.View.GONE
             }
         }
     }
